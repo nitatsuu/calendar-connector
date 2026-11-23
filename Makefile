@@ -34,7 +34,7 @@ test:
 
 ## Log in to Google for clasp (opens a browser) with the account named by ACCOUNT.
 login:
-	mkdir -p .secrets
+	mkdir -p .secrets $(PROJECT_DIR)
 	$(CLASP) login
 
 ## Create the Apps Script project once per account (writes deploy/$(ACCOUNT)/.clasp.json).
