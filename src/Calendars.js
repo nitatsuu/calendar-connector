@@ -25,7 +25,11 @@ function ccAttachMergedCalendar(calId) {
   try {
     ccCall_(function () { Calendar.CalendarList.insert({ id: calId }); });
   } catch (e) {
-    if (ccHttpCode_(e) !== 409) throw e; // already in the list
+    var code = ccHttpCode_(e);
+    if (code === 404 || code === 403) {
+      throw new Error('Календарь ' + calId + ' не найден или не расшарен на этот аккаунт');
+    }
+    if (code !== 409) throw e; // 409: already in the list
   }
   var cal = ccCall_(function () { return Calendar.CalendarList.get(calId); });
   if (cal.accessRole !== 'owner' && cal.accessRole !== 'writer') {

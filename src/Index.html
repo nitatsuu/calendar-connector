@@ -168,6 +168,7 @@ function mergedCard(m) {
       <input type="color" class="color" value="${esc(m.color || '#4285f4')}" title="Цвет в моём календаре">
       <input type="text" class="grow name" value="${esc(m.name)}" ${m.owner ? '' : 'disabled'}>
     </div>
+    <p class="small muted">ID: <code>${esc(m.id)}</code></p>
     ${m.missing ? '<p class="err">Календарь не найден в этом аккаунте (удалён или доступ отозван).</p>' : ''}
     <h3>Источники (календари этого аккаунта)</h3>
     <table>${sourceRows(m)}</table>
@@ -192,16 +193,21 @@ function render() {
     ? '<span class="ok">Автосинхронизация каждые 5 минут включена.</span>'
     : `<span class="warn">Автосинхронизация выключена.</span>
        <button onclick="run('ccUiInstallTrigger')">Включить</button>`;
-  const attach = S.attachable.length ? `
+  const attach = `
     <div class="card">
       <h2>Подключить объединённый календарь другого аккаунта</h2>
-      <p class="muted small">Этот аккаунт будет добавлять в него свои события.</p>
-      <div class="row">
+      <p class="muted small">Этот аккаунт будет добавлять в него свои события. Владелец календаря
+        должен сначала дать этому аккаунту доступ «редактирование». ID календаря виден в интерфейсе владельца.</p>
+      ${S.attachable.length ? `<div class="row" style="margin-bottom:8px">
         <select id="attach" class="grow">${S.attachable.map(c =>
           `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>
         <button onclick="run('ccUiAttach', document.getElementById('attach').value)">Подключить</button>
+      </div>` : ''}
+      <div class="row">
+        <input type="text" id="attachId" class="grow" placeholder="...@group.calendar.google.com">
+        <button onclick="run('ccUiAttach', document.getElementById('attachId').value.trim())">Подключить по ID</button>
       </div>
-    </div>` : '';
+    </div>`;
 
   document.getElementById('app').innerHTML = `
     <p class="row">${trigger}</p>
