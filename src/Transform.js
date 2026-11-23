@@ -103,7 +103,14 @@ function ccPlanEvent(ev, source, ctx) {
     return plan;
   }
 
-  if (ccIsOwnCopy(ev)) return result('skip', 'own-copy');
+  if (ccIsOwnCopy(ev)) {
+    // Copies are only passed on from a merged calendar used as a source ("cascade"),
+    // and only if they came from a calendar this script does not read itself.
+    // Otherwise they would come back as duplicates or loop forever.
+    var origin = ev.extendedProperties.private[CC_PROP_SRC_CAL];
+    var local = ctx.localOrigins || {};
+    if (!source.cascade || local[origin]) return result('skip', 'own-copy');
+  }
   if (ev.status === 'cancelled') return result('delete', 'cancelled');
   if (CC_SKIPPED_EVENT_TYPES[ev.eventType]) return result('skip', 'event-type');
   if (ccIsDeclinedBySelf(ev)) return result('delete', 'declined');

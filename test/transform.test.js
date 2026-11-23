@@ -110,3 +110,16 @@ test('target ids are deterministic and valid base32hex', () => {
   assert.notEqual(a, c);
   assert.match(a, /^[0-9a-v]{5,1024}$/);
 });
+
+test('cascade source passes on copies from other accounts only', () => {
+  const copyFrom = (origin) => ({ ...timed, extendedProperties: { private: { ccSrcCal: origin, ccSrcId: 'x' } } });
+  const united = { calendarId: 'united@group', mode: 'busy', cascade: true };
+  const cctx = { ...ctx, localOrigins: { 'me@kse.org.ua': true, 'united@group': true } };
+  assert.equal(T.ccPlanEvent(copyFrom('grants@gmail.com'), united, cctx).action, 'upsert');
+  assert.equal(T.ccPlanEvent(copyFrom('me@kse.org.ua'), united, cctx).reason, 'own-copy');
+  // Without the cascade flag copies are never passed on.
+  assert.equal(T.ccPlanEvent(copyFrom('grants@gmail.com'), { ...united, cascade: false }, cctx).reason, 'own-copy');
+  // A copy of a copy points at the cascade source, not the original account.
+  const p = T.ccPlanEvent(copyFrom('grants@gmail.com'), united, cctx);
+  assert.equal(p.body.extendedProperties.private.ccSrcCal, 'united@group');
+});

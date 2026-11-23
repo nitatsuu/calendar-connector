@@ -111,11 +111,12 @@ function statusText(st) {
 function sourceRows(m) {
   const selected = {};
   (m.sources || []).forEach(s => selected[s.calendarId] = s);
-  return S.sources.map(c => {
+  return S.sources.filter(c => c.id !== m.id).map(c => {
     const s = selected[c.id];
     return `<tr data-src="${esc(c.id)}">
       <td><input type="checkbox" class="on" ${s ? 'checked' : ''}></td>
       <td class="grow"><span class="swatch" style="background:${esc(c.color || '#999')}"></span>${esc(c.name)}
+        ${c.merged ? '<span class="muted small">· объединённый: только события из других аккаунтов</span>' : ''}
         <div class="small">${s ? statusText(m.statuses[c.id]) : ''}</div></td>
       <td><select class="mode">
         <option value="full" ${s && s.mode === 'full' ? 'selected' : ''}>все детали</option>
@@ -166,7 +167,7 @@ function mergedCard(m) {
   return `<div class="card" data-merged="${esc(m.id)}">
     <div class="row">
       <input type="color" class="color" value="${esc(m.color || '#4285f4')}" title="Цвет в моём календаре">
-      <input type="text" class="grow name" value="${esc(m.name)}" ${m.owner ? '' : 'disabled'}>
+      <input type="text" class="grow name" value="${esc(m.name)}" ${m.owner && !m.primary ? '' : 'disabled'}>
     </div>
     <p class="small muted">ID: <code>${esc(m.id)}</code></p>
     ${m.missing ? '<p class="err">Календарь не найден в этом аккаунте (удалён или доступ отозван).</p>' : ''}
@@ -195,9 +196,10 @@ function render() {
        <button onclick="run('ccUiInstallTrigger')">Включить</button>`;
   const attach = `
     <div class="card">
-      <h2>Подключить объединённый календарь другого аккаунта</h2>
-      <p class="muted small">Этот аккаунт будет добавлять в него свои события. Владелец календаря
-        должен сначала дать этому аккаунту доступ «редактирование». ID календаря виден в интерфейсе владельца.</p>
+      <h2>Подключить существующий календарь как цель</h2>
+      <p class="muted small">Этот аккаунт будет добавлять в него события. Это может быть объединённый календарь
+        другого аккаунта (владелец должен дать этому аккаунту доступ «редактирование», ID виден в его интерфейсе)
+        или основной календарь этого аккаунта: его ID — это email аккаунта.</p>
       ${S.attachable.length ? `<div class="row" style="margin-bottom:8px">
         <select id="attach" class="grow">${S.attachable.map(c =>
           `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>

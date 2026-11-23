@@ -15,9 +15,11 @@ function ccSyncAll() {
   }
   try {
     var deadline = Date.now() + CC_TIME_BUDGET_MS;
-    ccLoadConfig().merged.forEach(function (mc) {
+    var cfg = ccLoadConfig();
+    var localOrigins = ccLocalOrigins_(cfg);
+    cfg.merged.forEach(function (mc) {
       (mc.sources || []).forEach(function (source) {
-        if (Date.now() < deadline) ccSyncSource_(mc, source, deadline);
+        if (Date.now() < deadline) ccSyncSource_(mc, source, deadline, localOrigins);
       });
     });
   } finally {
@@ -30,10 +32,29 @@ function ccCopyId_(targetId, srcCalId, srcEventId) {
   return ccTargetIdFromHash(ccSha256Hex_(ccIdSeed(targetId, srcCalId, srcEventId)));
 }
 
-function ccSyncSource_(mc, source, deadline) {
+/**
+ * Calendars this script itself reads or writes. Copies that originate from them are never
+ * taken from a cascade source: this script already handles those events directly.
+ */
+function ccLocalOrigins_(cfg) {
+  var local = {};
+  cfg.merged.forEach(function (m) {
+    local[m.id] = true;
+    (m.sources || []).forEach(function (s) {
+      if (!s.cascade) local[s.calendarId] = true;
+    });
+  });
+  return local;
+}
+
+function ccSyncSource_(mc, source, deadline, localOrigins) {
   var st = ccLoadState_(mc.id, source.calendarId);
   var status = { at: new Date().toISOString(), upserted: 0, deleted: 0, skipped: 0, errors: 0 };
-  var ctx = { cutoffMs: Date.now() - CC_LOOKBACK_DAYS * 864e5, busyLabel: mc.busyLabel };
+  var ctx = {
+    cutoffMs: Date.now() - CC_LOOKBACK_DAYS * 864e5,
+    busyLabel: mc.busyLabel,
+    localOrigins: localOrigins || {},
+  };
   var deferred = [];
   var resetOnce = false;
 

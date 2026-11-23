@@ -19,8 +19,9 @@ function ccUiState() {
   return {
     email: Session.getEffectiveUser().getEmail(),
     triggerInstalled: ccTriggerInstalled_(),
-    // Merged calendars are never offered as sources: copies of copies would loop.
-    sources: cals.filter(function (c) { return !c.merged && c.role !== 'freeBusyReader'; }),
+    // Merged calendars can be sources too ("cascade"): only events that came from
+    // calendars this script does not read itself are passed on (see ccPlanEvent).
+    sources: cals.filter(function (c) { return c.role !== 'freeBusyReader'; }),
     attachable: cals.filter(function (c) {
       return c.merged && !configured[c.id] && (c.role === 'owner' || c.role === 'writer');
     }),
@@ -32,6 +33,7 @@ function ccUiState() {
       return Object.assign({}, m, {
         missing: !cal,
         owner: owner,
+        primary: !!cal && cal.primary,
         statuses: statuses,
         acl: owner ? ccListAcl(m.id) : [],
         links: ccShareLinks(m.id),
@@ -80,6 +82,9 @@ function ccUiSave(input) {
   var mc = ccFindMerged_(cfg, input.id);
   if (!mc) throw new Error('Календарь не найден в настройках');
 
+  var mergedIds = {};
+  ccListCalendars().forEach(function (c) { if (c.merged) mergedIds[c.id] = true; });
+
   var busyLabel = String(input.busyLabel || '').trim();
   var busyLabelChanged = busyLabel !== (mc.busyLabel || '');
   var old = {};
@@ -91,6 +96,7 @@ function ccUiSave(input) {
       return {
         calendarId: String(s.calendarId),
         mode: s.mode === 'busy' ? 'busy' : 'full',
+        cascade: !!mergedIds[String(s.calendarId)],
         prefix: String(s.prefix || '').trim(),
       };
     });
@@ -98,7 +104,7 @@ function ccUiSave(input) {
   // A source whose copies would look different must be re-read in full.
   sources.forEach(function (s) {
     var o = old[s.calendarId];
-    var changed = !o || o.mode !== s.mode || (o.prefix || '') !== s.prefix ||
+    var changed = !o || o.mode !== s.mode || (o.prefix || '') !== s.prefix || !!o.cascade !== s.cascade ||
       (s.mode === 'busy' && busyLabelChanged);
     if (changed) ccResetState_(mc.id, s.calendarId);
   });
@@ -109,8 +115,9 @@ function ccUiSave(input) {
   var name = String(input.name || '').trim() || mc.name;
   var color = String(input.color || '');
   if (name !== mc.name) {
-    var role = ccCall_(function () { return Calendar.CalendarList.get(mc.id); }).accessRole;
-    if (role === 'owner') ccRenameCalendar(mc.id, name);
+    var entry = ccCall_(function () { return Calendar.CalendarList.get(mc.id); });
+    // Never rename someone's primary calendar: it is named after the account.
+    if (entry.accessRole === 'owner' && !entry.primary) ccRenameCalendar(mc.id, name);
   }
   if (color && color !== mc.color) ccSetColor(mc.id, color);
 

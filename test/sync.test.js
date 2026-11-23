@@ -188,3 +188,26 @@ test('purging a source removes only its copies', () => {
   ctx.ccPurgeSource_(TARGET, SRC_CAL);
   assert.deepEqual(fake.live(TARGET).map(e => e.id), ['manual']);
 });
+
+test('KSE account: own events go to United, other accounts come back as Busy, no loops', () => {
+  const env = makeEnv();
+  const { fake, ctx } = env;
+  const KSE = 'me@kse.org.ua';
+  const UNITED = 'united@group.calendar.google.com';
+  // United already holds a copy made by the personal script from another account.
+  fake.put(UNITED, { id: 'ccfromgrants', status: 'confirmed', summary: 'Grant call',
+    start: { dateTime: soon(1) }, end: { dateTime: soon(2) },
+    extendedProperties: { private: { ccSrcCal: 'grants@gmail.com', ccSrcId: 'g1' } } });
+  fake.put(KSE, { id: 'k1', status: 'confirmed', summary: 'Lecture', start: { dateTime: soon(3) }, end: { dateTime: soon(4) } });
+  ctx.ccSaveConfig({ merged: [
+    { id: UNITED, name: 'United', sources: [{ calendarId: KSE, mode: 'full' }] },
+    { id: KSE, name: 'Ivan Sidun', sources: [{ calendarId: UNITED, mode: 'busy', cascade: true }] },
+  ] });
+
+  for (let i = 0; i < 3; i++) ctx.ccSyncAll(); // several rounds: nothing may multiply
+
+  const kse = fake.live(KSE).map(e => e.summary).sort();
+  const united = fake.live(UNITED).map(e => e.summary).sort();
+  assert.deepEqual(kse, ['Busy', 'Lecture']);         // the grant call as Busy, KSE lecture untouched
+  assert.deepEqual(united, ['Grant call', 'Lecture']); // the lecture copied once, no Busy coming back
+});
