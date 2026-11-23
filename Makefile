@@ -12,7 +12,7 @@ ACCOUNT ?= personal
 PROJECT_DIR := $(ROOT)/deploy/$(ACCOUNT)
 CLASP := $(NODE) $(ROOT)/node_modules/@google/clasp/build/src/index.js --user $(ACCOUNT) --project $(PROJECT_DIR)
 
-.PHONY: setup node test login create push open deploy
+.PHONY: setup node test login create push open app
 
 setup: node node_modules
 
@@ -48,5 +48,6 @@ push: test
 open:
 	$(CLASP) open-script
 
-deploy: push
-	$(CLASP) create-deployment --description "web app"
+## Print the web-app URL (HEAD deployment: always the latest pushed code, visible only to me).
+app:
+	@$(CLASP) list-deployments | awk '/@HEAD/ {print "https://script.google.com/macros/s/" $$2 "/dev"}'

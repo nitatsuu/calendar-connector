@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #1a73e8; --danger: #c5221f; --ok: #188038; --warn: #b06000;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181e; --card: #1e222a; --text: #e6e8ec; --muted: #9aa2b1; --line: #2e333d;
+      --accent: #8ab4f8; --danger: #f28b82; --ok: #81c995; --warn: #fdd663;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0; }
+  h3 { font-size: 14px; margin: 18px 0 8px; color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin: 16px 0; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1 1 200px; min-width: 0; }
+  input[type=text], input[type=email], select {
+    font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; }
+  input[type=color] { width: 40px; height: 32px; border: 1px solid var(--line); border-radius: 6px;
+    padding: 2px; background: var(--bg); }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #15181e; } }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  .ok { color: var(--ok); } .err { color: var(--danger); } .warn { color: var(--warn); }
+  .banner { padding: 10px 12px; border-radius: 8px; margin: 12px 0; border: 1px solid var(--line); }
+  .banner.err { border-color: var(--danger); }
+  a { color: var(--accent); }
+  code { font-size: 12px; word-break: break-all; }
+  #busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--accent);
+    display: none; }
+  @media (max-width: 600px) { .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<div id="busy"></div>
+<main>
+  <h1>Calendar Connector</h1>
+  <div class="muted" id="who">Загрузка…</div>
+  <div id="msg"></div>
+  <div id="app"></div>
+</main>
+
+<script>
+let S = null;
+
+function call(fn, ...args) {
+  return new Promise((resolve, reject) =>
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args));
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function show(text, isError) {
+  document.getElementById('msg').innerHTML = text
+    ? `<div class="banner ${isError ? 'err' : ''}">${esc(text)}</div>` : '';
+}
+
+async function run(fn, ...args) {
+  document.getElementById('busy').style.display = 'block';
+  document.querySelectorAll('button').forEach(b => b.disabled = true);
+  show('');
+  try {
+    S = await call(fn, ...args);
+    render();
+    return true;
+  } catch (e) {
+    show(e.message || String(e), true);
+    render();
+    return false;
+  } finally {
+    document.getElementById('busy').style.display = 'none';
+  }
+}
+
+const ROLE_LABEL = {
+  owner: 'владелец', writer: 'редактирование', reader: 'все детали',
+  freeBusyReader: 'только занят/свободен',
+};
+
+function statusText(st) {
+  if (!st) return '<span class="muted">ещё не синхронизировался</span>';
+  const when = new Date(st.at).toLocaleString();
+  if (st.errors) return `<span class="err" title="${esc(st.lastError)}">ошибка · ${esc(when)}</span>`;
+  const partial = st.partial ? ' · <span class="warn">продолжится</span>' : '';
+  return `<span class="ok">ок</span> · ${esc(when)} · +${st.upserted} −${st.deleted}${partial}`;
+}
+
+function sourceRows(m) {
+  const selected = {};
+  (m.sources || []).forEach(s => selected[s.calendarId] = s);
+  return S.sources.map(c => {
+    const s = selected[c.id];
+    return `<tr data-src="${esc(c.id)}">
+      <td><input type="checkbox" class="on" ${s ? 'checked' : ''}></td>
+      <td class="grow"><span class="swatch" style="background:${esc(c.color || '#999')}"></span>${esc(c.name)}
+        <div class="small">${s ? statusText(m.statuses[c.id]) : ''}</div></td>
+      <td><select class="mode">
+        <option value="full" ${s && s.mode === 'full' ? 'selected' : ''}>все детали</option>
+        <option value="busy" ${s && s.mode === 'busy' ? 'selected' : ''}>только «занят»</option>
+      </select></td>
+      <td class="hide-sm"><input type="text" class="prefix" placeholder="префикс" size="8"
+        value="${esc(s ? s.prefix : '')}"></td>
+    </tr>`;
+  }).join('');
+}
+
+function aclBlock(m) {
+  if (!m.owner) {
+    return `<p class="muted small">Календарь принадлежит другому аккаунту: доступом управляет владелец.</p>`;
+  }
+  const pub = (m.acl.find(a => a.type === 'default') || {}).role || 'none';
+  const rules = m.acl.filter(a => a.type !== 'default' && a.role !== 'owner').map(a => `
+    <tr><td>${esc(a.value)}</td><td>${esc(ROLE_LABEL[a.role] || a.role)}</td>
+      <td style="text-align:right"><button class="danger" onclick="unshare('${esc(m.id)}','${esc(a.id)}')">убрать</button></td></tr>`).join('');
+  return `
+    <h3>Доступ по ссылке (для всех, у кого есть ссылка)</h3>
+    <div class="row">
+      <select id="pub-${esc(m.id)}">
+        <option value="none" ${pub === 'none' ? 'selected' : ''}>закрыт</option>
+        <option value="freeBusyReader" ${pub === 'freeBusyReader' ? 'selected' : ''}>только занят/свободен</option>
+        <option value="reader" ${pub === 'reader' ? 'selected' : ''}>все детали</option>
+      </select>
+      <button onclick="setPublic('${esc(m.id)}')">Применить</button>
+    </div>
+    ${pub !== 'none' ? `<p class="small">
+      Ссылка: <a href="${esc(m.links.web)}" target="_blank">открыть в браузере</a> ·
+      <a href="${esc(m.links.add)}" target="_blank">добавить в Google Calendar</a> ·
+      iCal: <code>${esc(m.links.ics)}</code></p>` : ''}
+    <h3>Конкретные люди и мои другие аккаунты</h3>
+    <table>${rules || '<tr><td class="muted">никого</td></tr>'}</table>
+    <div class="row" style="margin-top:8px">
+      <input type="email" class="grow" id="share-${esc(m.id)}" placeholder="email">
+      <select id="role-${esc(m.id)}">
+        <option value="freeBusyReader">только занят/свободен</option>
+        <option value="reader">все детали</option>
+        <option value="writer">редактирование (для своего аккаунта со скриптом)</option>
+      </select>
+      <button onclick="share('${esc(m.id)}')">Дать доступ</button>
+    </div>`;
+}
+
+function mergedCard(m) {
+  return `<div class="card" data-merged="${esc(m.id)}">
+    <div class="row">
+      <input type="color" class="color" value="${esc(m.color || '#4285f4')}" title="Цвет в моём календаре">
+      <input type="text" class="grow name" value="${esc(m.name)}" ${m.owner ? '' : 'disabled'}>
+    </div>
+    ${m.missing ? '<p class="err">Календарь не найден в этом аккаунте (удалён или доступ отозван).</p>' : ''}
+    <h3>Источники (календари этого аккаунта)</h3>
+    <table>${sourceRows(m)}</table>
+    <div class="row" style="margin-top:8px">
+      <span class="muted">Надпись вместо названия в режиме «только занят»:</span>
+      <input type="text" class="busyLabel" placeholder="Busy" value="${esc(m.busyLabel || '')}" size="12">
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" onclick="save('${esc(m.id)}')">Сохранить</button>
+      <button onclick="run('ccUiSyncNow')">Синхронизировать сейчас</button>
+      <span class="grow"></span>
+      <button class="danger" onclick="detach('${esc(m.id)}')">Отключить</button>
+    </div>
+    ${aclBlock(m)}
+  </div>`;
+}
+
+function render() {
+  if (!S) return;
+  document.getElementById('who').textContent = `Аккаунт: ${S.email}`;
+  const trigger = S.triggerInstalled
+    ? '<span class="ok">Автосинхронизация каждые 5 минут включена.</span>'
+    : `<span class="warn">Автосинхронизация выключена.</span>
+       <button onclick="run('ccUiInstallTrigger')">Включить</button>`;
+  const attach = S.attachable.length ? `
+    <div class="card">
+      <h2>Подключить объединённый календарь другого аккаунта</h2>
+      <p class="muted small">Этот аккаунт будет добавлять в него свои события.</p>
+      <div class="row">
+        <select id="attach" class="grow">${S.attachable.map(c =>
+          `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>
+        <button onclick="run('ccUiAttach', document.getElementById('attach').value)">Подключить</button>
+      </div>
+    </div>` : '';
+
+  document.getElementById('app').innerHTML = `
+    <p class="row">${trigger}</p>
+    ${S.merged.map(mergedCard).join('') ||
+      '<p class="muted">Объединённых календарей пока нет.</p>'}
+    ${attach}
+    <div class="card">
+      <h2>Новый объединённый календарь</h2>
+      <div class="row" style="margin-top:8px">
+        <input type="color" id="newColor" value="#4285f4">
+        <input type="text" id="newName" class="grow" placeholder="Название, например «Все мои календари»">
+        <button class="primary" onclick="create()">Создать</button>
+      </div>
+    </div>`;
+}
+
+function create() {
+  run('ccUiCreate', document.getElementById('newName').value, document.getElementById('newColor').value);
+}
+
+function save(id) {
+  const card = document.querySelector(`[data-merged="${CSS.escape(id)}"]`);
+  const m = S.merged.find(x => x.id === id);
+  const sources = [...card.querySelectorAll('tr[data-src]')]
+    .filter(tr => tr.querySelector('.on').checked)
+    .map(tr => ({
+      calendarId: tr.dataset.src,
+      mode: tr.querySelector('.mode').value,
+      prefix: tr.querySelector('.prefix').value,
+    }));
+  const removed = (m.sources || []).filter(s => !sources.some(n => n.calendarId === s.calendarId));
+  if (removed.length && !confirm(`Убрать ${removed.length} источник(а)? Их копии будут удалены из объединённого календаря.`)) return;
+  run('ccUiSave', {
+    id,
+    name: card.querySelector('.name').value,
+    color: card.querySelector('.color').value,
+    busyLabel: card.querySelector('.busyLabel').value,
+    sources,
+  });
+}
+
+function detach(id) {
+  if (!confirm('Перестать синхронизировать этот календарь из этого аккаунта? Сам календарь останется.')) return;
+  const purge = confirm('Удалить и уже скопированные события из этого аккаунта? (ОК — удалить, Отмена — оставить)');
+  run('ccUiDetach', id, purge);
+}
+
+function share(id) {
+  run('ccUiShare', id, document.getElementById('share-' + id).value, document.getElementById('role-' + id).value);
+}
+
+function unshare(id, ruleId) {
+  if (confirm('Убрать доступ?')) run('ccUiUnshare', id, ruleId);
+}
+
+function setPublic(id) {
+  run('ccUiSetPublic', id, document.getElementById('pub-' + id).value);
+}
+
+run('ccUiState');
+</script>
+</body>
+</html>
