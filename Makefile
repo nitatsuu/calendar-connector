@@ -41,6 +41,9 @@ login:
 create:
 	mkdir -p $(PROJECT_DIR)
 	$(CLASP) create --type standalone --title "Calendar Connector ($(ACCOUNT))" --rootDir $(ROOT)/src
+	# clasp create may overwrite our manifest with a default one: restore it.
+	git checkout -- src/
+	git clean -fdq src/
 
 push: test
 	$(CLASP) push --force
