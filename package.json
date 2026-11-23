@@ -1,0 +1,12 @@
+{
+  "name": "calendar-connector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Merge several Google calendars into one shareable calendar (Google Apps Script)",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "@google/clasp": "3.4.1"
+  }
+}
