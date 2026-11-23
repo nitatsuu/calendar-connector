@@ -209,6 +209,16 @@ function render() {
       '<p class="muted">Объединённых календарей пока нет.</p>'}
     ${attach}
     <div class="card">
+      <h2>Добавить календарь-источник</h2>
+      <p class="muted small">Календарь, который расшарили на этот аккаунт, но которого нет в списке источников.
+        Для основного календаря другого аккаунта ID — это его email. Для остальных календарей:
+        Google Calendar → настройки календаря → «Интеграция календаря» → «Идентификатор календаря».</p>
+      <div class="row">
+        <input type="text" id="addSource" class="grow" placeholder="name@gmail.com или ...@group.calendar.google.com">
+        <button onclick="run('ccUiAddSource', document.getElementById('addSource').value)">Добавить</button>
+      </div>
+    </div>
+    <div class="card">
       <h2>Новый объединённый календарь</h2>
       <div class="row" style="margin-top:8px">
         <input type="color" id="newColor" value="#4285f4">
