@@ -58,15 +58,7 @@ function ccUiCreate(name, color) {
 function ccUiAddSource(calId) {
   calId = String(calId || '').trim();
   if (!calId) throw new Error('Нужен ID календаря или email аккаунта');
-  try {
-    ccCall_(function () { Calendar.CalendarList.insert({ id: calId }); });
-  } catch (e) {
-    var code = ccHttpCode_(e);
-    if (code === 404 || code === 403) {
-      throw new Error('Календарь ' + calId + ' не найден или не расшарен на этот аккаунт');
-    }
-    if (code !== 409) throw e;
-  }
+  ccEnsureInCalendarList_(calId);
   return ccUiState();
 }
 

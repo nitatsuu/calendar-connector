@@ -22,24 +22,44 @@ function ccCreateMergedCalendar(name, color) {
  * this account's script will push its own calendars into it.
  */
 function ccAttachMergedCalendar(calId) {
-  try {
-    ccCall_(function () { Calendar.CalendarList.insert({ id: calId }); });
-  } catch (e) {
-    var code = ccHttpCode_(e);
-    if (code === 404 || code === 403) {
-      throw new Error('Календарь ' + calId + ' не найден или не расшарен на этот аккаунт');
-    }
-    if (code !== 409) throw e; // 409: already in the list
-  }
-  var cal = ccCall_(function () { return Calendar.CalendarList.get(calId); });
+  var cal = ccEnsureInCalendarList_(calId);
   if (cal.accessRole !== 'owner' && cal.accessRole !== 'writer') {
     throw new Error('Нет права на запись в этот календарь. Выдай этому аккаунту «Внесение изменений».');
   }
+  calId = cal.id; // the real id, also when "primary" or the account e-mail was given
   var cfg = ccLoadConfig();
   if (!ccFindMerged_(cfg, calId)) {
     cfg.merged.push({ id: calId, name: cal.summaryOverride || cal.summary, color: '', sources: [] });
     ccSaveConfig(cfg);
   }
+}
+
+/**
+ * Calendar-list entry of a calendar, adding it to this account's list first if needed.
+ * Inserting a calendar that is already listed (e.g. the account's own primary) can fail,
+ * so look it up before inserting.
+ */
+function ccEnsureInCalendarList_(calId) {
+  var me = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (calId === 'primary' || calId.toLowerCase() === me) {
+    return ccCall_(function () { return Calendar.CalendarList.get('primary'); });
+  }
+  try {
+    return ccCall_(function () { return Calendar.CalendarList.get(calId); });
+  } catch (e) {
+    if (ccHttpCode_(e) !== 404) throw e;
+  }
+  try {
+    ccCall_(function () { Calendar.CalendarList.insert({ id: calId }); });
+  } catch (e) {
+    var code = ccHttpCode_(e);
+    if (code === 404 || code === 403) {
+      throw new Error('Календарь ' + calId + ' не найден или не расшарен на этот аккаунт (' +
+        String((e && e.message) || e) + ')');
+    }
+    if (code !== 409) throw e;
+  }
+  return ccCall_(function () { return Calendar.CalendarList.get(calId); });
 }
 
 /** Calendar colour as this account sees it (each viewer picks their own colour). */
