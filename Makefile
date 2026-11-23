@@ -7,7 +7,10 @@ export npm_config_cache := $(ROOT)/.cache/npm
 export clasp_config_auth := $(ROOT)/.secrets/.clasprc.json
 NODE := $(ROOT)/.tools/node/bin/node
 NPM := $(NODE) $(ROOT)/.tools/node/lib/node_modules/npm/bin/npm-cli.js
-CLASP := $(NODE) $(ROOT)/node_modules/@google/clasp/build/src/index.js
+# One Apps Script project per Google account: make <target> ACCOUNT=personal|kse|...
+ACCOUNT ?= personal
+PROJECT_DIR := $(ROOT)/deploy/$(ACCOUNT)
+CLASP := $(NODE) $(ROOT)/node_modules/@google/clasp/build/src/index.js --user $(ACCOUNT) --project $(PROJECT_DIR)
 
 .PHONY: setup node test login create push open deploy
 
@@ -29,14 +32,15 @@ node_modules: package.json
 test:
 	$(NODE) --test test/
 
-## Log in to Google for clasp (opens a browser). Use the TARGET (personal Gmail) account.
+## Log in to Google for clasp (opens a browser) with the account named by ACCOUNT.
 login:
 	mkdir -p .secrets
 	$(CLASP) login
 
-## Create the Apps Script project once (writes .clasp.json).
+## Create the Apps Script project once per account (writes deploy/$(ACCOUNT)/.clasp.json).
 create:
-	$(CLASP) create --type standalone --title "Calendar Connector" --rootDir src
+	mkdir -p $(PROJECT_DIR)
+	$(CLASP) create --type standalone --title "Calendar Connector ($(ACCOUNT))" --rootDir $(ROOT)/src
 
 push: test
 	$(CLASP) push --force
