@@ -9,8 +9,10 @@ NODE := $(ROOT)/.tools/node/bin/node
 NPM := $(NODE) $(ROOT)/.tools/node/lib/node_modules/npm/bin/npm-cli.js
 # One Apps Script project per Google account: make <target> ACCOUNT=personal|kse|...
 ACCOUNT ?= personal
-PROJECT_DIR := $(ROOT)/deploy/$(ACCOUNT)
-CLASP := $(NODE) $(ROOT)/node_modules/@google/clasp/build/src/index.js --user $(ACCOUNT) --project $(PROJECT_DIR)
+# clasp only accepts a rootDir inside the project file's folder, so project files live here.
+PROJECT := $(ROOT)/.clasp-$(ACCOUNT).json
+CLASP_AUTH := $(NODE) $(ROOT)/node_modules/@google/clasp/build/src/index.js --user $(ACCOUNT)
+CLASP := $(CLASP_AUTH) --project $(PROJECT)
 
 .PHONY: setup node test login create push open app
 
@@ -34,13 +36,15 @@ test:
 
 ## Log in to Google for clasp (opens a browser) with the account named by ACCOUNT.
 login:
-	mkdir -p .secrets $(PROJECT_DIR)
-	$(CLASP) login
+	mkdir -p .secrets
+	$(CLASP_AUTH) login
 
-## Create the Apps Script project once per account (writes deploy/$(ACCOUNT)/.clasp.json).
+## Create the Apps Script project once per account (writes .clasp-$(ACCOUNT).json).
 create:
-	mkdir -p $(PROJECT_DIR)
-	$(CLASP) create --type standalone --title "Calendar Connector ($(ACCOUNT))" --rootDir $(ROOT)/src
+	@test ! -f $(PROJECT) || { echo "$(PROJECT) already exists"; exit 1; }
+	@test ! -f .clasp.json || { echo ".clasp.json is in the way, remove it first"; exit 1; }
+	$(CLASP_AUTH) create --type standalone --title "Calendar Connector ($(ACCOUNT))" --rootDir src
+	mv .clasp.json $(PROJECT)
 	# clasp create may overwrite our manifest with a default one: restore it.
 	git checkout -- src/
 	git clean -fdq src/

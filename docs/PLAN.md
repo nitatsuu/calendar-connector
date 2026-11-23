@@ -48,7 +48,7 @@ KSE:          скрипт (kse)      ── мой + календари пре�
   «Внесение изменений в мероприятия». Это делается через API (`sharing`), руками не нужно.
 - id копий включают id исходного календаря, поэтому два скрипта не пересекаются.
 - Деплой: `make login|create|push ACCOUNT=personal|kse`, отдельный clasp-проект на
-  аккаунт в `deploy/<account>/` (в `.gitignore`).
+  аккаунт в `.clasp-<account>.json` (в `.gitignore`).
 
 ## Модули (`src/`)
 
@@ -73,7 +73,7 @@ KSE:          скрипт (kse)      ── мой + календари пре�
 - `.tools/node`: Node.js из официального архива, без системной установки;
 - `node_modules/`: `@google/clasp` для выкладки кода в Apps Script;
 - `.secrets/`: токены `clasp` (по одному на аккаунт), лежит в `.gitignore`;
-- `deploy/<account>/`: clasp-проект каждого аккаунта, тоже в `.gitignore`;
+- `.clasp-<account>.json`: clasp-проект каждого аккаунта, тоже в `.gitignore`;
 - кэш npm в `.cache/`.
 
 Удаление папки удаляет всё. Снаружи остаются только сами скрипты в Google-аккаунтах.
